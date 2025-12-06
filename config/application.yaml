@@ -17,4 +17,5 @@ vector_store:
   # 向量库集合名
   collection_name: "cmrc2018"
 
-
+retrieval:
+  top_k: 3 # retrieval阶段返回 top k 个结果
