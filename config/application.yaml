@@ -19,3 +19,6 @@ vector_store:
 
 retrieval:
   top_k: 3 # retrieval阶段返回 top k 个结果
+
+evaluation:
+  output_csv: "datasets/processed/cmrc2018_evaluation.csv"
