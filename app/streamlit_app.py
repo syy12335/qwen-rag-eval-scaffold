@@ -131,11 +131,11 @@ def run_batch_evaluation(
 
 def main():
     st.set_page_config(
-        page_title="Qwen RAG Eval Console",
+        page_title="RAG Eval Console",
         layout="wide",
     )
 
-    st.title("Qwen RAG 评估控制台")
+    st.title("RAG 评估控制台")
 
     # 侧边栏全局配置
     st.sidebar.header("全局配置")
@@ -329,7 +329,7 @@ def main():
 
         runner: DefaultRunner = st.session_state["online_runner"]
 
-        # 简单单轮问答窗口（保持和 DefaultRunner.run(question) 接口一致）
+        # 简单单轮问答窗口（保持和 DefaultRunner.invoke(question) 接口一致）
         question = st.text_area(
             "输入你的问题（将通过当前配置的 RAG 链路检索与生成）：",
             height=100,
@@ -342,8 +342,8 @@ def main():
                 return
 
             with st.spinner("正在通过 RAG 链路生成答案…"):
-                # 这里假定 DefaultRunner 暴露了 run(question: str) 接口
-                out: Dict[str, Any] = runner.run(question)
+                # 这里假定 DefaultRunner 暴露了 invoke(question: str) 接口
+                out: Dict[str, Any] = runner.invoke(question)
 
             answer = out.get("answer") or out.get("generation", "")
             contexts = out.get("contexts", [])

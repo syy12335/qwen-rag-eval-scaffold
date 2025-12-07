@@ -63,6 +63,34 @@ def convert_chunks_to_documents(records: List[Dict[str, Any]]) -> List[Document]
     return docs
 
 
+def deduplicate_documents(docs: List[Document]) -> List[Document]:
+    """
+    对一批 Document 做去重。
+
+    策略：
+      以 page_content 作为唯一键，文本完全相同视为重复。
+      若多条 Document 拥有相同的 page_content，则保留遇到的第一条，
+      丢弃后续相同文本的 Document。
+    """
+    seen_texts = set()
+    deduped: List[Document] = []
+
+    for doc in docs:
+        text = doc.page_content
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
+        deduped.append(doc)
+
+    if len(deduped) != len(docs):
+        print(
+            f"[vector_builder] 去重后文档数：{len(deduped)} "
+            f"(原始 {len(docs)}，去掉 {len(docs) - len(deduped)} 条完全重复文本)"
+        )
+
+    return deduped
+
+
 def ensure_cmrc_vector_store(
     config: Union[YamlConfigReader, str] = "config/application.yaml",
 ) -> None:
@@ -73,7 +101,7 @@ def ensure_cmrc_vector_store(
       2. 若目标 collection 已存在，则直接返回
       3. 若 samples 不存在，则调用 build_eval_samples 构建
       4. 若 chunks 不存在，则基于 samples 构建 JSONL chunks
-      5. 读取 chunks → Document → 写入向量库
+      5. 读取 chunks → Document → 写入向量库（含去重）
     """
     # 统一成 YamlConfigReader 实例
     if isinstance(config, str):
@@ -122,9 +150,10 @@ def ensure_cmrc_vector_store(
         print(f"[vector_builder] 使用 samples 切割 chunks → {chunks_path}")
         make_chunks_from_samples(samples_path, chunks_path)
 
-    # 读取 chunks → Document → 写入向量库
+    # 读取 chunks → Document → 写入向量库（带去重）
     records = load_chunk_records(chunks_path)
     docs = convert_chunks_to_documents(records)
+    docs = deduplicate_documents(docs)
 
     print(
         f"[vector_builder] 写入向量库（共 {len(docs)} 条 chunk），"
@@ -191,6 +220,7 @@ def build_vector_store_from_samples(
 
     records = load_chunk_records(chunks_path)
     docs = convert_chunks_to_documents(records)
+    docs = deduplicate_documents(docs)
 
     print(
         f"[vector_builder] 写入向量库（共 {len(docs)} 条 chunk），"
