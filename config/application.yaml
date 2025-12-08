@@ -54,15 +54,21 @@ vector_store:
   collection_name: "cmrc2018_default"
 
 
-embedding:
-  # 嵌入后端 provider，由 embedding_factory 解释
-  # 当前实现支持 "dashscope"
-  provider: "dashscope"
+llm:
+  # 厂商 / 网关级别配置：只管 base_url + api_key_env + default_model_name
+  # 具体角色用哪个 provider / model_name，在 config/model_roles.yaml 中指定
 
-  # 嵌入模型名称，由 provider 自己解释
-  # 框架本身不写死具体字符串，只按原样传给后端
-  model: "text-embedding-v4"
+  qwen:
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "API_KEY_QWEN"
+    default_model_name: "qwen-plus"
 
-  # 从哪个环境变量读取 API Key
-  # 例如这里表示从环境变量 API_KEY_Qwen 中取
-  api_key_env: "API_KEY_Qwen"
+  openai:
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    default_model_name: "gpt-4.1-mini"
+
+  local_sglang:
+    base_url: "http://127.0.0.1:8000/v1"
+    api_key_env: "LOCAL_SGLANG_KEY"
+    default_model_name: "qwen2.5-7b-instruct"

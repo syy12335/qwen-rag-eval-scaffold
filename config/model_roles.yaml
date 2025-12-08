@@ -1,0 +1,20 @@
+# config/model_roles.yaml
+# 约定：这里定义“角色 → provider → model_name 等参数”的映射。
+# provider 字段的值，对应 application.yaml 中 llm.<provider> 那一层。
+
+embedding:
+  provider: "qwen"              # 使用 application.yaml 中 llm.qwen 的 base_url 与 api_key_env
+  model_name: "text-embedding-v4"
+
+  # 将来如果需要，可以在这里放 embedding 相关的附加参数
+  # dim: 1536
+  # batch_size: 32
+
+
+generation:
+  provider: "qwen"              # 使用 application.yaml 中 llm.qwen
+  model_name: "qwen-flash"
+
+  # 与“生成”强相关的参数可以配置在这里，AgentHelper / RagRunner 中按需读取
+  temperature: 0.2
+  max_tokens: 1024
