@@ -61,15 +61,13 @@
    Windows 当前会话示例：
 
    ```bat
-   set API_KEY_XXX=your-api-key
-   python quickstart.py
+   set API_KEY_QWEN=your-api-key
    ```
 
    Linux 或 macOS 示例：
 
    ```bash
-   export API_KEY_XXX="your-api-key"
-   python quickstart.py
+   export API_KEY_QWEN="your-api-key"
    ```
 
    具体环境变量名与模型配置示例以 `config/application.yaml` 与相关文档为准。
