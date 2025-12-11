@@ -1,10 +1,14 @@
 embedding:
-  provider: "qwen"
-  model_name: "text-embedding-v4"
+  provider: "baidu"
+#  provider: "qwen"
+  model_name:  "Embedding-V1"
+#  model_name: "text-embedding-v4"
 
 generation:
-  provider: "qwen"
-  model_name: "qwen-flash"
+  provider: "baidu"
+#  provider: "qwen"
+  model_name: "ernie-tiny-8k"
+#  model_name: "qwen-flash"
   temperature: 0.2
   max_tokens: 1024
   parser: "str"
@@ -29,7 +33,7 @@ generation:
     {memory_text}
 
 evaluation:
-  provider: "qwen"
-  model_name: "qwen-plus"
+  provider: "baidu"
+  model_name: "ernie-4.5-turbo-128k-preview"
   temperature: 0      # 评估建议用 0，保证判分稳定
   max_tokens: 1024

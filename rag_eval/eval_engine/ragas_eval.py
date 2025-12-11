@@ -25,6 +25,8 @@ from utils import YamlConfigReader
 from rag_eval.eval_engine.rag_batch_runner import RagEvalRecord
 from rag_eval.eval_engine.eval_result import EvalResult
 
+from langchain_openai import ChatOpenAI
+from rag_eval.embeddings.baidu_embeddings import BaiduAIStudioEmbeddings
 
 def _build_ragas_dataset(records: List[RagEvalRecord]) -> Dataset:
     """
@@ -120,9 +122,10 @@ def _build_ragas_components(config: YamlConfigReader):
 
       2）根据 provider 找到 application.yaml.llm.<provider> 段，
          使用其中的 api_key_env 从环境变量获取 API Key。
+         若需要，则从 base_url 字段读取自定义网关地址。
 
-      3）embedding 与向量库保持完全一致：
-         评估所用 embedding 模型 = embedding.model_name。
+      3）embedding 与向量库保持配置一致：
+         RAGAS 所用 embedding 模型 = embedding.model_name。
     """
     roles_cfg = _load_model_roles(config)
 
@@ -131,7 +134,7 @@ def _build_ragas_components(config: YamlConfigReader):
     emb_model_name = (
         roles_cfg.get("embedding.model_name")
         or roles_cfg.get("embedding.model")
-        or "text-embedding-v4"
+        or ("text-embedding-v4" if emb_provider == "qwen" else "embedding-v1")
     )
 
     # 2. evaluation 角色：用于 RAGAS 的判分 LLM
@@ -149,28 +152,34 @@ def _build_ragas_components(config: YamlConfigReader):
         or roles_cfg.get("generation.model_name")
         or config.get(f"llm.{eval_provider}.default_eval_model_name")
         or config.get(f"llm.{eval_provider}.default_model_name")
-        or "qwen-plus"
+        or (
+            "qwen-plus" if eval_provider == "qwen" else "ernie-4.5-turbo-128k-preview"
+        )
     )
 
     eval_temperature = roles_cfg.get("evaluation.temperature", 0)
     eval_max_tokens = roles_cfg.get("evaluation.max_tokens", 1024)
 
-    # 3. 当前实现仅支持 Qwen / DashScope 体系
-    if emb_provider != "qwen":
+    # 3. 当前实现支持 Qwen / Baidu 两个体系
+    if emb_provider not in {"qwen", "baidu"}:
         raise NotImplementedError(
-            "当前 RAGAS embedding backend 仅支持 provider='qwen'，"
+            "当前 RAGAS embedding backend 仅支持 provider in {'qwen', 'baidu'}，"
             f"检测到 embedding.provider={emb_provider}。"
         )
 
-    if eval_provider != "qwen":
+    if eval_provider not in {"qwen", "baidu"}:
         raise NotImplementedError(
-            "当前 RAGAS LLM backend 仅支持 provider='qwen'，"
+            "当前 RAGAS LLM backend 仅支持 provider in {'qwen', 'baidu'}，"
             f"检测到 evaluation.provider={eval_provider}。"
         )
 
-    # 4. 从 application.yaml.llm.<provider> 读取 API Key 环境变量名
+    # 4. 从 application.yaml.llm.<provider> 读取 API Key、base_url 等配置
     llm_section_key = f"llm.{eval_provider}"
-    api_key_env = config.get(f"{llm_section_key}.api_key_env") or "API_KEY_QWEN"
+    api_key_env = config.get(f"{llm_section_key}.api_key_env")
+    if not api_key_env:
+        # 默认值：Qwen 用 API_KEY_QWEN，Baidu 用 AI_STUDIO_API_KEY
+        api_key_env = "API_KEY_QWEN" if eval_provider == "qwen" else "AI_STUDIO_API_KEY"
+
     api_key = os.environ.get(api_key_env)
     if not api_key:
         raise ValueError(
@@ -178,22 +187,55 @@ def _build_ragas_components(config: YamlConfigReader):
             "请先设置该环境变量。"
         )
 
-    # 5. 构造 RAGAS 用的 LLM 与 Embedding 封装
-    llm = LangchainLLMWrapper(
-        ChatTongyi(
-            dashscope_api_key=api_key,
-            model=eval_model_name,
-            temperature=eval_temperature,
-            max_tokens=eval_max_tokens,
-        )
-    )
+    base_url = config.get(f"{llm_section_key}.base_url")
+    if eval_provider == "baidu" and not base_url:
+        import ragas.executor
+        ragas.executor.MAX_CONCURRENCY = 1
+        base_url = "https://aistudio.baidu.com/llm/lmapi/v3"
 
-    embeddings = LangchainEmbeddingsWrapper(
-        DashScopeEmbeddings(
-            model=emb_model_name,
-            dashscope_api_key=api_key,
+    # 5. 构造 RAGAS 用的 LLM
+    if eval_provider == "qwen":
+        llm = LangchainLLMWrapper(
+            ChatTongyi(
+                dashscope_api_key=api_key,
+                model=eval_model_name,
+                temperature=eval_temperature,
+                max_tokens=eval_max_tokens,
+            )
         )
-    )
+    else:  # eval_provider == "baidu"
+        llm = LangchainLLMWrapper(
+            ChatOpenAI(
+                base_url=base_url,
+                model=eval_model_name,
+                api_key=api_key,
+                temperature=eval_temperature,
+                max_tokens=eval_max_tokens,
+            )
+        )
+
+    # 6. 构造 RAGAS 用的 Embedding 封装
+    if emb_provider == "qwen":
+        embedding_backend = DashScopeEmbeddings(
+            model=emb_model_name,
+            dashscope_api_key=api_key,  # 一般评估与 embedding 共享同一个 key；如需分离可改成按 emb_provider 取 key
+        )
+    else:  # emb_provider == "baidu"
+        embedding_llm_section_key = "llm.baidu"
+        emb_api_key_env = (
+            config.get(f"{embedding_llm_section_key}.api_key_env") or "AI_STUDIO_API_KEY"
+        )
+        emb_api_key = os.environ.get(emb_api_key_env) or api_key
+
+        emb_base_url = config.get(f"{embedding_llm_section_key}.base_url") or base_url
+
+        embedding_backend = BaiduAIStudioEmbeddings(
+            model=emb_model_name,
+            api_key=emb_api_key,
+            base_url=emb_base_url,
+        )
+
+    embeddings = LangchainEmbeddingsWrapper(embedding_backend)
 
     return llm, embeddings
 
@@ -251,11 +293,15 @@ def run_ragas_evaluation(
         if hasattr(m, "embeddings"):
             setattr(m, "embeddings", eval_embeddings)
 
+    from ragas.run_config import RunConfig
+    run_config = RunConfig(max_workers=1)  # 串行执行，规避所有限流
+
     result = ragas_evaluate(
         dataset=dataset,
         metrics=list(metrics),
         llm=eval_llm,
         embeddings=eval_embeddings,
+        run_config=run_config
     )
 
     df: pd.DataFrame = result.to_pandas()

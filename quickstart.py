@@ -14,6 +14,7 @@ quickstart.py
     0 或未配置 → 评估全部样本
 """
 
+
 from __future__ import annotations
 
 from typing import Any, Iterable
@@ -89,7 +90,6 @@ def main() -> None:
     eval_result.show_console(top_n=5)
 
     print("\n全部流程结束。")
-
 
 if __name__ == "__main__":
     main()

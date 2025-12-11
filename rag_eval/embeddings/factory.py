@@ -11,6 +11,12 @@ from langchain_community.embeddings import DashScopeEmbeddings
 
 from utils import YamlConfigReader
 
+from typing import List
+
+from openai import OpenAI
+
+from rag_eval.embeddings.baidu_embeddings import BaiduAIStudioEmbeddings
+
 
 def _get_project_root(config: YamlConfigReader) -> Path:
     """
@@ -98,6 +104,15 @@ def build_embedding_from_config(app_config: YamlConfigReader) -> Embeddings:
 
     # 3. 按 provider_key 构造具体的 Embeddings 实现
     # 当前只支持 Qwen / DashScope，其他 provider 显式报错。
+    if provider_key == "baidu":
+        # 使用百度 AI Studio（文心）作为 embedding 提供方
+        return BaiduAIStudioEmbeddings(
+            model=model_name,  # 例如 "Embedding-V1"
+            api_key=api_key,  # 建议是你的 API_KEY_BAIDU
+            base_url="https://aistudio.baidu.com/llm/lmapi/v3",
+        )
+
+
     if provider_key == "qwen":
         return DashScopeEmbeddings(
             model=model_name,
@@ -120,3 +135,4 @@ def build_embedding_from_config(app_config: YamlConfigReader) -> Embeddings:
         f"[embedding_factory] 暂不支持 embedding.provider = {provider_key!r}，"
         "目前仅支持 provider = 'qwen'（DashScopeEmbeddings）。"
     )
+
